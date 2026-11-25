@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Water Network — Flow-Sensor Schematic</title>
+  <meta name="theme-color" content="#071318">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <style>
+    @keyframes flowDashes {
+      from { stroke-dashoffset: 32; }
+      to { stroke-dashoffset: 0; }
+    }
+    .flow-active {
+      stroke-dasharray: 6 8;
+      animation: flowDashes 0.7s linear infinite;
+    }
+    .flow-slow {
+      stroke-dasharray: 6 8;
+      animation: flowDashes 1.6s linear infinite;
+    }
+    .flow-stopped {
+      stroke-dasharray: 6 8;
+      stroke-dashoffset: 0;
+    }
+    @keyframes waterDrip {
+      0% { transform: translateY(0); opacity: 0; }
+      20% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(42px); opacity: 0; }
+    }
+    .drip-p1 { animation: waterDrip 0.8s linear infinite; }
+    .drip-p2 { animation: waterDrip 0.8s linear infinite 0.25s; }
+    .drip-p3 { animation: waterDrip 0.8s linear infinite 0.5s; }
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      50% { transform: scale(1.05); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.9; }
+    }
+    .pulse-alarm {
+      animation: pulseRing 0.8s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen p-4 md:p-6 font-sans select-none">
+  <div class="max-w-6xl mx-auto space-y-5">
+    <a href="index.html" class="inline-block text-sm text-cyan-400 hover:text-cyan-300">← Home</a>
+    
+    <!-- Header -->
+    <header class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee]"></span>
+          <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            Smart Water Network <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">FLOW SENSOR EDITION</span>
+          </h1>
+        </div>
+        <p class="text-xs md:text-sm text-slate-400 mt-0.5">
+          Live simulation: 2× YF-S201 Flow Sensors + R385 12V Diaphragm Pump + 12V Solenoid Isolation Valve
+        </p>
+      </div>
+
+      <!-- System State Pill & Audio Toggle -->
+      <div class="flex items-center gap-3">
+        <button id="soundBtn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700 transition">
+          <span id="soundIcon">🔊</span>
+          <span id="soundText">Buzzer Sound: ON</span>
+        </button>
+
+        <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold bg-emerald-950/80 border-emerald-700 text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="statusLabel">SYSTEM HEALTHY</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Visual Stage: The Pipeline Simulation (SVG) -->
+    <div class="relative bg-slate-900/90 rounded-2xl border border-slate-800 p-4 md:p-6 shadow-2xl overflow-hidden">
+      <!-- Water grid ambient pattern -->
+      <div class="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none"></div>
+
+      <div class="relative z-10">
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-2 font-mono">
+          <span>PIPELINE SCHEMATIC (TOP VIEW)</span>
+          <span class="text-cyan-400 flex items-center gap-1">
+            <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> Real-time Fluid Dynamics
+          </span>
+        </div>
+
+        <svg viewBox="0 0 960 330" class="w-full h-auto overflow-visible font-sans" id="pipelineSvg">
+          <defs>
+            <linearGradient id="pipeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#334155" />
+              <stop offset="50%" stop-color="#1e293b" />
+              <stop offset="100%" stop-color="#0f172a" />
+            </linearGradient>
+            <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="100%" stop-color="#0284c7" />
+            </linearGradient>
+            <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- ================= 1. WATER TANK / RESERVOIR ================= -->
+          <g id="tankGroup" transform="translate(20, 70)">
+            <!-- Tank Body -->
+            <rect x="0" y="0" width="100" height="150" rx="10" fill="#0f172a" stroke="#334155" stroke-width="2.5" />
+            <!-- Water Level Inside Tank -->
+            <path id="tankWater" d="M 4 45 Q 25 42, 50 45 T 96 45 L 96 146 Q 96 146, 50 146 T 4 146 Z" fill="url(#waterGrad)" opacity="0.65" />
+            <!-- Tank Ruler/Level lines -->
+            <line x1="8" y1="40" x2="22" y2="40" stroke="#64748b" stroke-width="1.5" />
+            <line x1="8" y1="75" x2="22" y2="75" stroke="#64748b" stroke-width="1.5" />
+            <line x1="8" y1="110" x2="22" y2="110" stroke="#64748b" stroke-width="1.5" />
+            <text x="50" y="24" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">WATER TANK</text>
+            <text x="50" y="100" fill="#e0f2fe" font-size="10" font-family="monospace" text-anchor="middle" id="tankLiters">RESERVOIR</text>
+          </g>
+
+          <!-- Flexible Intake Hose from Tank to Pump -->
+          <path d="M 120 145 L 160 145" stroke="#475569" stroke-width="14" stroke-linecap="round" fill="none" />
+          <path id="intakeFlow" d="M 120 145 L 160 145" stroke="#38bdf8" stroke-width="6" fill="none" class="flow-active" />
+
+          <!-- ================= 2. R385 12V DIAPHRAGM PUMP ================= -->
+          <g id="pumpGroup" transform="translate(160, 110)">
+            <!-- Pump Mounting Base -->
+            <rect x="0" y="0" width="70" height="70" rx="8" fill="#1e293b" stroke="#475569" stroke-width="2" />
+            <!-- Pump Diaphragm Head -->
+            <circle cx="35" cy="35" r="24" fill="#0f172a" stroke="#38bdf8" stroke-width="2" />
+            <!-- Rotating Impeller/Vibration marker -->
+            <g id="pumpImpeller" transform="translate(35, 35)">
+              <circle cx="0" cy="0" r="16" fill="#1e293b" />
+              <line x1="-12" y1="0" x2="12" y2="0" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+              <line x1="0" y1="-12" x2="0" y2="12" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+              <circle cx="0" cy="0" r="4" fill="#f8fafc" />
+            </g>
+            <text x="35" y="86" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">R385 PUMP</text>
+            <text x="35" y="98" fill="#38bdf8" font-size="9" font-family="monospace" text-anchor="middle" id="pumpVoltage">12V DC</text>
+          </g>
+
+          <!-- Pipe section: Pump to Sensor 1 -->
+          <rect x="230" y="133" width="70" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+          <line id="flowP1" x1="230" y1="145" x2="300" y2="145" stroke="#38bdf8" stroke-width="6" class="flow-active" />
+
+          <!-- ================= 3. SENSOR 1: YF-S201 FLOW SENSOR ================= -->
+          <g id="sensor1Group" transform="translate(300, 95)">
+            <!-- Outer Hexagonal/Plastic Sensor Body -->
+            <rect x="0" y="15" width="80" height="70" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2" />
+            <!-- Inner turbine housing -->
+            <circle cx="40" cy="50" r="24" fill="#1e293b" stroke="#334155" stroke-width="2" />
+            <!-- Spinning Rotor (4-blades) -->
+            <g id="rotor1" transform="translate(40, 50)">
+              <path d="M 0 -18 L 4 -4 L 0 0 L -4 -4 Z" fill="#38bdf8" />
+              <path d="M 18 0 L 4 4 L 0 0 L 4 -4 Z" fill="#38bdf8" />
+              <path d="M 0 18 L -4 4 L 0 0 L 4 4 Z" fill="#38bdf8" />
+              <path d="M -18 0 L -4 -4 L 0 0 L -4 4 Z" fill="#38bdf8" />
+              <circle cx="0" cy="0" r="5" fill="#f8fafc" />
+            </g>
+            <!-- Badge -->
+            <rect x="10" y="0" width="60" height="18" rx="4" fill="#0369a1" />
+            <text x="40" y="13" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">SENSOR 1</text>
+            <text x="40" y="100" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">YF-S201 (Inlet)</text>
+            <text x="40" y="112" fill="#38bdf8" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle" id="svgF1">1.8 L/min</text>
+          </g>
+
+          <!-- Pipe section: Sensor 1 to Leak Point -->
+          <rect x="380" y="133" width="90" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+          <line id="flowP2" x1="380" y1="145" x2="470" y2="145" stroke="#38bdf8" stroke-width="6" class="flow-active" />
+
+          <!-- ================= 4. LEAK TAP (BALL VALVE) ================= -->
+          <g id="leakTapGroup" transform="translate(470, 95)">
+            <!-- Tee Joint in Pipe -->
+            <rect x="0" y="38" width="50" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+            <!-- Tap Neck -->
+            <rect x="15" y="62" width="20" height="30" fill="#334155" stroke="#475569" stroke-width="1.5" />
+            <!-- Valve Handle -->
+            <g id="tapHandle" transform="translate(25, 30)" class="transition-transform duration-300">
+              <rect x="-24" y="-5" width="48" height="10" rx="3" fill="#ef4444" stroke="#b91c1c" stroke-width="1.5" />
+              <circle cx="0" cy="0" r="5" fill="#ffffff" />
+            </g>
+            <text x="25" y="18" fill="#f87171" font-size="10" font-weight="bold" text-anchor="middle">LEAK TAP</text>
+
+            <!-- Water Drips when open -->
+            <g id="dripGroup" opacity="0" class="transition-opacity duration-300">
+              <circle cx="22" cy="98" r="3.5" fill="#38bdf8" class="drip-p1" />
+              <circle cx="26" cy="102" r="4.5" fill="#38bdf8" class="drip-p2" />
+              <circle cx="24" cy="94" r="3" fill="#38bdf8" class="drip-p3" />
+              <!-- Puddle -->
+              <ellipse cx="25" cy="155" rx="36" ry="6" fill="#38bdf8" opacity="0.4" id="puddle" />
+            </g>
+          </g>
+
+          <!-- Pipe section: Leak Point to Sensor 2 -->
+          <rect x="520" y="133" width="90" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+          <line id="flowP3" x1="520" y1="145" x2="610" y2="145" stroke="#38bdf8" stroke-width="6" class="flow-active" />
+
+          <!-- ================= 5. SENSOR 2: YF-S201 FLOW SENSOR ================= -->
+          <g id="sensor2Group" transform="translate(610, 95)">
+            <!-- Outer Hexagonal/Plastic Sensor Body -->
+            <rect x="0" y="15" width="80" height="70" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2" id="s2Body" />
+            <!-- Inner turbine housing -->
+            <circle cx="40" cy="50" r="24" fill="#1e293b" stroke="#334155" stroke-width="2" />
+            <!-- Spinning Rotor (4-blades) -->
+            <g id="rotor2" transform="translate(40, 50)">
+              <path d="M 0 -18 L 4 -4 L 0 0 L -4 -4 Z" fill="#38bdf8" />
+              <path d="M 18 0 L 4 4 L 0 0 L 4 -4 Z" fill="#38bdf8" />
+              <path d="M 0 18 L -4 4 L 0 0 L 4 4 Z" fill="#38bdf8" />
+              <path d="M -18 0 L -4 -4 L 0 0 L -4 4 Z" fill="#38bdf8" />
+              <circle cx="0" cy="0" r="5" fill="#f8fafc" />
+            </g>
+            <!-- Badge -->
+            <rect x="10" y="0" width="60" height="18" rx="4" fill="#0284c7" />
+            <text x="40" y="13" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">SENSOR 2</text>
+            <text x="40" y="100" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">YF-S201 (Outlet)</text>
+            <text x="40" y="112" fill="#38bdf8" font-size="10" font-family="monospace" font-weight="bold" text-anchor="middle" id="svgF2">1.8 L/min</text>
+          </g>
+
+          <!-- Pipe section: Sensor 2 to Solenoid Valve -->
+          <rect x="690" y="133" width="70" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+          <line id="flowP4" x1="690" y1="145" x2="760" y2="145" stroke="#38bdf8" stroke-width="6" class="flow-active" />
+
+          <!-- ================= 6. SOLENOID ISOLATION VALVE ================= -->
+          <g id="valveGroup" transform="translate(760, 80)">
+            <!-- Valve Valve Body -->
+            <rect x="0" y="45" width="56" height="40" rx="5" fill="#1e293b" stroke="#475569" stroke-width="2" />
+            <!-- Solenoid Coil Cylinder Top -->
+            <rect x="13" y="10" width="30" height="35" rx="4" fill="#0f172a" stroke="#64748b" stroke-width="1.5" id="coilColor" />
+            <!-- Power terminals -->
+            <circle cx="20" cy="5" r="3" fill="#ef4444" />
+            <circle cx="36" cy="5" r="3" fill="#000000" />
+            <!-- Gate Plunger Mechanism (Slides down when closed) -->
+            <rect id="valveGate" x="24" y="15" width="8" height="30" rx="2" fill="#22c55e" class="transition-all duration-500" />
+            <text x="28" y="102" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">12V SOLENOID</text>
+            <text x="28" y="114" fill="#22c55e" font-size="9" font-family="monospace" font-weight="bold" text-anchor="middle" id="valveStatus">OPEN (NC Powered)</text>
+          </g>
+
+          <!-- Discharge Pipe (Outlet to village houses) -->
+          <rect x="816" y="133" width="90" height="24" fill="url(#pipeGrad)" stroke="#475569" stroke-width="1.5" />
+          <line id="flowP5" x1="816" y1="145" x2="906" y2="145" stroke="#38bdf8" stroke-width="6" class="flow-active" />
+          <text x="860" y="125" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">TO HOMES 🚰</text>
+
+          <!-- ================= 7. LEAK CONFIRMATION 3-SECOND TIMER OVERLAY ================= -->
+          <g id="timerGroup" transform="translate(495, 240)">
+            <circle cx="0" cy="0" r="32" fill="#0f172a" stroke="#334155" stroke-width="4" />
+            <circle id="timerProgress" cx="0" cy="0" r="32" fill="none" stroke="#ef4444" stroke-width="5"
+                    stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90)" stroke-linecap="round" />
+            <text x="0" y="6" fill="#f8fafc" font-size="16" font-family="monospace" font-weight="bold" text-anchor="middle" id="timerCount">3.0s</text>
+            <text x="0" y="48" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">CONFIRMATION</text>
+          </g>
+
+          <!-- ================= 8. BUZZER & LEDS ================= -->
+          <g transform="translate(680, 245)">
+            <!-- Buzzer -->
+            <rect x="0" y="-15" width="36" height="30" rx="4" fill="#0f172a" stroke="#475569" stroke-width="1.5" />
+            <path id="buzzerWaves" d="M 40 -10 Q 48 0, 40 10 M 44 -14 Q 56 0, 44 14" stroke="#ef4444" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0" />
+            <text x="18" y="28" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">BUZZER</text>
+
+            <!-- LEDs -->
+            <circle id="ledGreen" cx="80" cy="0" r="8" fill="#22c55e" filter="url(#glowCyan)" />
+            <text x="80" y="28" fill="#22c55e" font-size="9" font-mono font-weight="bold" text-anchor="middle">OK</text>
+            <circle id="ledRed" cx="120" cy="0" r="8" fill="#334155" />
+            <text x="120" y="28" fill="#94a3b8" font-size="9" font-mono font-weight="bold" text-anchor="middle">ALARM</text>
+          </g>
+
+          <!-- Flow Difference Delta Banner -->
+          <g transform="translate(240, 240)">
+            <rect x="0" y="-18" width="180" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5" />
+            <text x="90" y="-2" fill="#94a3b8" font-size="10" font-weight="bold" text-anchor="middle">DELTA FLOW (Q1 − Q2)</text>
+            <text x="90" y="16" fill="#38bdf8" font-size="15" font-family="monospace" font-weight="bold" text-anchor="middle" id="deltaDisplay">0.00 L/min</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Simulated Telegram Alert Popup -->
+      <div id="telegramAlert" class="absolute top-4 right-4 z-20 max-w-sm bg-slate-800/95 border border-red-500 rounded-xl p-3 shadow-2xl shadow-red-950/50 backdrop-blur-md transform transition-all duration-500 translate-x-96 opacity-0 pointer-events-none">
+        <div class="flex items-start gap-2.5">
+          <div class="w-8 h-8 rounded-full bg-red-600/20 text-red-400 flex items-center justify-center flex-shrink-0 text-base">
+            🚨
+          </div>
+          <div class="flex-1 text-xs">
+            <div class="flex items-center justify-between font-semibold text-red-400">
+              <span>ESP32 MOBILE ALERT</span>
+              <span class="text-[10px] text-slate-400 font-mono">Just Now</span>
+            </div>
+            <p class="text-slate-200 mt-1 font-mono leading-relaxed">
+              <strong>[URGENT] Water Line Leak!</strong><br>
+              Inlet: <span id="alertF1">1.8</span> L/min | Outlet: <span id="alertF2">0.5</span> L/min<br>
+              ΔQ: <span id="alertDiff">1.3</span> L/min (> 0.4 threshold).<br>
+              <span class="text-emerald-400">✓ 12V Solenoid Valve Closed</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Readouts -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <!-- Sensor 1 Readout -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[11px] text-slate-400 font-medium">SENSOR 1 (INLET)</div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="readoutQ1" class="text-2xl font-bold font-mono text-cyan-400">1.82</span>
+          <span class="text-xs text-slate-400">L/min</span>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono mt-1 flex justify-between">
+          <span>Pulse: <b id="readoutHz1" class="text-slate-300">13.6</b> Hz</span>
+          <span>PIN 2 (INT0)</span>
+        </div>
+      </div>
+
+      <!-- Sensor 2 Readout -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[11px] text-slate-400 font-medium">SENSOR 2 (OUTLET)</div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="readoutQ2" class="text-2xl font-bold font-mono text-cyan-400">1.81</span>
+          <span class="text-xs text-slate-400">L/min</span>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono mt-1 flex justify-between">
+          <span>Pulse: <b id="readoutHz2" class="text-slate-300">13.5</b> Hz</span>
+          <span>PIN 3 (INT1)</span>
+        </div>
+      </div>
+
+      <!-- Difference Delta Q -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5" id="deltaCard">
+        <div class="text-[11px] text-slate-400 font-medium">Δ FLOW (LEAK RATE)</div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="readoutDelta" class="text-2xl font-bold font-mono text-slate-200">0.01</span>
+          <span class="text-xs text-slate-400">L/min</span>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono mt-1">
+          Threshold: <b class="text-amber-400">0.40 L/min</b>
+        </div>
+      </div>
+
+      <!-- Solenoid & Pump State -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5">
+        <div class="text-[11px] text-slate-400 font-medium">ISOLATION VALVE</div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="readoutValve" class="text-xl font-bold font-mono text-emerald-400">OPEN</span>
+          <span class="text-[10px] text-slate-400 font-mono">(12V Relay NC)</span>
+        </div>
+        <div class="text-[10px] text-slate-500 font-mono mt-1 flex justify-between">
+          <span>Pump: <b id="readoutPump" class="text-cyan-400">ON (12V)</b></span>
+          <span id="readoutCountdown" class="text-slate-400">T: 3.0s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls & Interactive Operations -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Interactive Slider: Leak Valve -->
+      <div class="md:col-span-2 bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <label for="leakSlider" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+            <span>🚰</span> BALL VALVE LEAK SEVERITY: <span id="leakPercentLabel" class="text-cyan-400 font-mono font-bold">0% (Closed)</span>
+          </label>
+          <span class="text-[11px] text-slate-500">Drag slider to puncture/leak the line</span>
+        </div>
+
+        <input id="leakSlider" type="range" min="0" max="100" value="0"
+               class="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 transition" />
+
+        <!-- Quick Presets -->
+        <div class="flex flex-wrap items-center gap-2 mt-3 text-xs">
+          <span class="text-slate-500 text-[11px]">Quick Tests:</span>
+          <button onclick="setLeak(0)" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition">
+            0% (No Leak)
+          </button>
+          <button onclick="setLeak(25)" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-amber-300 font-medium transition">
+            25% (Pin-hole drip)
+          </button>
+          <button onclick="setLeak(65)" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-orange-400 font-medium transition">
+            65% (Cracked Pipe)
+          </button>
+          <button onclick="setLeak(100)" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-red-400 font-medium transition">
+            100% (Burst Line)
+          </button>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-2.5">
+        <div class="text-xs font-semibold text-slate-300">SYSTEM ACTION OVERRIDES</div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button id="pumpToggleBtn" class="px-3 py-2 text-xs font-semibold rounded-lg bg-cyan-950 border border-cyan-700 text-cyan-300 hover:bg-cyan-900 transition flex items-center justify-center gap-1.5">
+            <span>⚡</span> Pump: ON
+          </button>
+          <button id="repairResetBtn" class="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-300 hover:bg-emerald-900 transition flex items-center justify-center gap-1.5">
+            <span>🔄</span> Repair &amp; Reset
+          </button>
+        </div>
+
+        <div class="text-[11px] text-slate-400 leading-tight">
+          When leak exceeds <strong>0.40 L/min</strong> continuously for <strong>3.0s</strong>, Arduino activates the relay to close the valve and latches the alarm.
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Serial Plotter / Data Graph (Canvas) -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-lg">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-sm bg-cyan-400"></span>
+          <span class="text-xs font-bold text-slate-300 font-mono">ARDUINO SERIAL PLOTTER (LIVE DUAL-FLOW)</span>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-mono">
+          <span class="text-cyan-400 flex items-center gap-1"><span class="w-2 h-0.5 bg-cyan-400 inline-block"></span> Sensor 1 (Inlet)</span>
+          <span class="text-amber-400 flex items-center gap-1"><span class="w-2 h-0.5 bg-amber-400 inline-block"></span> Sensor 2 (Outlet)</span>
+          <span class="text-red-400 flex items-center gap-1"><span class="w-2 h-0.5 bg-red-400 inline-block border-t border-dashed"></span> Delta Threshold</span>
+        </div>
+      </div>
+      <canvas id="serialCanvas" width="900" height="150" class="w-full h-36 bg-slate-950 rounded-lg border border-slate-800/80"></canvas>
+    </div>
+
+  </div>
+
+  <script>
+    // System Simulation State
+    const state = {
+      pumpOn: true,
+      leakPercent: 0,
+      soundEnabled: true,
+      valveOpen: true,
+      alarmLatched: false,
+      
+      // Flow metrics
+      basePumpFlow: 1.82, // Liters per min from R385 pump
+      q1: 1.82,
+      q2: 1.82,
+      deltaQ: 0.0,
+      
+      // Confirmation timer
+      threshold: 0.40, // L/min difference threshold to declare leak
+      leakTimerMs: 0,
+      confirmDurationMs: 3000,
+      isConfirming: false,
+      
+      // Rotors visual rotation angle
+      rot1Angle: 0,
+      rot2Angle: 0,
+      pumpImpellerAngle: 0
+    };
+
+    // DOM Elements
+    const leakSlider = document.getElementById('leakSlider');
+    const leakPercentLabel = document.getElementById('leakPercentLabel');
+    const tapHandle = document.getElementById('tapHandle');
+    const dripGroup = document.getElementById('dripGroup');
+    const puddle = document.getElementById('puddle');
+    const rotor1 = document.getElementById('rotor1');
+    const rotor2 = document.getElementById('rotor2');
+    const pumpImpeller = document.getElementById('pumpImpeller');
+    const valveGate = document.getElementById('valveGate');
+    const coilColor = document.getElementById('coilColor');
+    const valveStatus = document.getElementById('valveStatus');
+    const timerProgress = document.getElementById('timerProgress');
+    const timerCount = document.getElementById('timerCount');
+    const buzzerWaves = document.getElementById('buzzerWaves');
+    const ledGreen = document.getElementById('ledGreen');
+    const ledRed = document.getElementById('ledRed');
+    const deltaDisplay = document.getElementById('deltaDisplay');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusLabel = document.getElementById('statusLabel');
+    const soundBtn = document.getElementById('soundBtn');
+    const soundIcon = document.getElementById('soundIcon');
+    const soundText = document.getElementById('soundText');
+    const pumpToggleBtn = document.getElementById('pumpToggleBtn');
+    const repairResetBtn = document.getElementById('repairResetBtn');
+    const telegramAlert = document.getElementById('telegramAlert');
+
+    // Readout elements
+    const readoutQ1 = document.getElementById('readoutQ1');
+    const readoutHz1 = document.getElementById('readoutHz1');
+    const readoutQ2 = document.getElementById('readoutQ2');
+    const readoutHz2 = document.getElementById('readoutHz2');
+    const readoutDelta = document.getElementById('readoutDelta');
+    const readoutValve = document.getElementById('readoutValve');
+    const readoutPump = document.getElementById('readoutPump');
+    const readoutCountdown = document.getElementById('readoutCountdown');
+    const svgF1 = document.getElementById('svgF1');
+    const svgF2 = document.getElementById('svgF2');
+    const alertF1 = document.getElementById('alertF1');
+    const alertF2 = document.getElementById('alertF2');
+    const alertDiff = document.getElementById('alertDiff');
+
+    // Flow line animations
+    const flowLines = [
+      document.getElementById('intakeFlow'),
+      document.getElementById('flowP1'),
+      document.getElementById('flowP2'),
+      document.getElementById('flowP3'),
+      document.getElementById('flowP4'),
+      document.getElementById('flowP5')
+    ];
+
+    // Web Audio Synthesizer for Buzzer
+    let audioCtx = null;
+    let buzzerOsc = null;
+    let buzzerGain = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function startBuzzerBeep() {
+      if (!state.soundEnabled || buzzerOsc) return;
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        buzzerOsc = audioCtx.createOscillator();
+        buzzerGain = audioCtx.createGain();
+        buzzerOsc.type = 'square';
+        buzzerOsc.frequency.setValueAtTime(2400, audioCtx.currentTime); // 2.4kHz piezoelectric tone
+
+        // Pulsing volume
+        buzzerGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        buzzerOsc.connect(buzzerGain);
+        buzzerGain.connect(audioCtx.destination);
+        buzzerOsc.start();
+      } catch (e) {
+        console.log(e);
+      }
+    }
+
+    function stopBuzzerBeep() {
+      if (buzzerOsc) {
+        try {
+          buzzerOsc.stop();
+          buzzerOsc.disconnect();
+        } catch(e) {}
+        buzzerOsc = null;
+      }
+    }
+
+    // Interactive slider handler
+    window.setLeak = function(val) {
+      leakSlider.value = val;
+      onLeakChange(val);
+    };
+
+    function onLeakChange(val) {
+      state.leakPercent = parseInt(val, 10);
+      leakPercentLabel.textContent = `${state.leakPercent}% (${state.leakPercent === 0 ? 'Closed' : state.leakPercent > 70 ? 'Severe Leak' : 'Leaking'})`;
+      
+      // Rotate tap handle: 0 deg = closed (parallel), 90 deg = fully open
+      const rot = (state.leakPercent / 100) * 90;
+      tapHandle.style.transform = `translate(25px, 30px) rotate(${rot}deg)`;
+      
+      // Drip visualization
+      if (state.leakPercent > 0 && state.pumpOn && state.valveOpen) {
+        dripGroup.style.opacity = Math.min(1, state.leakPercent / 30);
+        puddle.setAttribute('rx', 15 + (state.leakPercent / 100) * 35);
+      } else {
+        dripGroup.style.opacity = '0';
+      }
+    }
+
+    leakSlider.addEventListener('input', (e) => onLeakChange(e.target.value));
+
+    // Sound Toggle
+    soundBtn.addEventListener('click', () => {
+      initAudio();
+      state.soundEnabled = !state.soundEnabled;
+      if (!state.soundEnabled) {
+        stopBuzzerBeep();
+        soundIcon.textContent = '🔇';
+        soundText.textContent = 'Buzzer Sound: OFF';
+      } else {
+        soundIcon.textContent = '🔊';
+        soundText.textContent = 'Buzzer Sound: ON';
+        if (state.alarmLatched) startBuzzerBeep();
+      }
+    });
+
+    // Pump Toggle
+    pumpToggleBtn.addEventListener('click', () => {
+      state.pumpOn = !state.pumpOn;
+      pumpToggleBtn.innerHTML = state.pumpOn ? '<span>⚡</span> Pump: ON' : '<span>🔌</span> Pump: OFF';
+      pumpToggleBtn.className = state.pumpOn
+        ? 'px-3 py-2 text-xs font-semibold rounded-lg bg-cyan-950 border border-cyan-700 text-cyan-300 hover:bg-cyan-900 transition flex items-center justify-center gap-1.5'
+        : 'px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 transition flex items-center justify-center gap-1.5';
+      readoutPump.textContent = state.pumpOn ? 'ON (12V)' : 'OFF (0V)';
+      readoutPump.className = state.pumpOn ? 'text-cyan-400' : 'text-slate-500';
+    });
+
+    // Reset / Repair System
+    repairResetBtn.addEventListener('click', () => {
+      state.alarmLatched = false;
+      state.valveOpen = true;
+      state.leakTimerMs = 0;
+      state.isConfirming = false;
+      setLeak(0); // Fix pipe
+      stopBuzzerBeep();
+      telegramAlert.classList.add('translate-x-96', 'opacity-0');
+      telegramAlert.classList.remove('translate-x-0', 'opacity-100');
+    });
+
+    // Rolling Canvas Serial Plotter
+    const canvas = document.getElementById('serialCanvas');
+    const ctx = canvas.getContext('2d');
+    const historyLength = 180;
+    const q1History = new Array(historyLength).fill(0);
+    const q2History = new Array(historyLength).fill(0);
+
+    function drawSerialPlotter() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const w = canvas.width;
+      const h = canvas.height;
+      
+      // Grid lines
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let y = 0; y <= h; y += 30) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+
+      // Max scale = 2.5 L/min
+      const maxVal = 2.5;
+      const stepX = w / (historyLength - 1);
+
+      // Draw Q1 (Cyan)
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < historyLength; i++) {
+        const x = i * stepX;
+        const y = h - (q1History[i] / maxVal) * (h - 20) - 10;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Draw Q2 (Amber)
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < historyLength; i++) {
+        const x = i * stepX;
+        const y = h - (q2History[i] / maxVal) * (h - 20) - 10;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Main Simulation Loop
+    let lastTime = performance.now();
+
+    function updateSimulation(currentTime) {
+      const dt = Math.min(100, currentTime - lastTime);
+      lastTime = currentTime;
+
+      // 1. Calculate Flow Rates
+      if (!state.pumpOn) {
+        state.q1 = 0;
+        state.q2 = 0;
+      } else if (!state.valveOpen) {
+        // Solenoid is closed -> dead-head pressure, zero flow
+        state.q1 = 0;
+        state.q2 = 0;
+      } else {
+        // Pump is pumping
+        const jitter1 = (Math.random() - 0.5) * 0.04;
+        const jitter2 = (Math.random() - 0.5) * 0.04;
+        
+        state.q1 = Math.max(0, state.basePumpFlow + jitter1);
+        
+        // Water escaping through leak
+        const leakFraction = state.leakPercent / 100;
+        const leakVolume = (state.q1 * 0.85) * leakFraction; // up to 85% escapes
+        
+        state.q2 = Math.max(0, (state.q1 - leakVolume) + jitter2);
+      }
+
+      state.deltaQ = Math.max(0, state.q1 - state.q2);
+
+      // YF-S201 conversion formula: Frequency = 7.5 * Q (L/min)
+      const hz1 = state.q1 * 7.5;
+      const hz2 = state.q2 * 7.5;
+
+      // 2. Arduino State Machine & 3-Second Confirmation Timer Logic
+      if (!state.alarmLatched) {
+        if (state.pumpOn && state.valveOpen && state.deltaQ >= state.threshold) {
+          // Leak suspected! Accumulate time
+          state.isConfirming = true;
+          state.leakTimerMs += dt;
+
+          if (state.leakTimerMs >= state.confirmDurationMs) {
+            // CONFIRMED LEAK! Trigger relay & latch alarm
+            state.alarmLatched = true;
+            state.valveOpen = false; // Cut power to NC Solenoid
+            state.isConfirming = false;
+            
+            // Show Mobile Alert
+            alertF1.textContent = state.q1.toFixed(2);
+            alertF2.textContent = state.q2.toFixed(2);
+            alertDiff.textContent = state.deltaQ.toFixed(2);
+            telegramAlert.classList.remove('translate-x-96', 'opacity-0');
+            telegramAlert.classList.add('translate-x-0', 'opacity-100');
+
+            if (state.soundEnabled) startBuzzerBeep();
+          }
+        } else {
+          // Pressure/flow stabilized before 3s -> reset timer
+          state.isConfirming = false;
+          state.leakTimerMs = Math.max(0, state.leakTimerMs - dt * 2);
+        }
+      }
+
+      // 3. Update Visuals
+      // Rotors
+      if (state.q1 > 0.1) {
+        state.rot1Angle = (state.rot1Angle + hz1 * 1.5) % 360;
+        rotor1.setAttribute('transform', `translate(40, 50) rotate(${state.rot1Angle})`);
+      }
+      if (state.q2 > 0.1) {
+        state.rot2Angle = (state.rot2Angle + hz2 * 1.5) % 360;
+        rotor2.setAttribute('transform', `translate(40, 50) rotate(${state.rot2Angle})`);
+      }
+      if (state.pumpOn && state.valveOpen) {
+        state.pumpImpellerAngle = (state.pumpImpellerAngle + 18) % 360;
+        pumpImpeller.setAttribute('transform', `translate(35, 35) rotate(${state.pumpImpellerAngle})`);
+      }
+
+      // Pipe flow line dashes
+      const isFlowing = state.pumpOn && state.valveOpen && state.q1 > 0.1;
+      flowLines.forEach((l, idx) => {
+        if (!isFlowing) {
+          l.setAttribute('class', 'flow-stopped');
+          l.setAttribute('stroke', '#334155');
+        } else {
+          if (idx >= 3 && state.leakPercent > 50) {
+            l.setAttribute('class', 'flow-slow');
+            l.setAttribute('stroke', '#0284c7');
+          } else {
+            l.setAttribute('class', 'flow-active');
+            l.setAttribute('stroke', '#38bdf8');
+          }
+        }
+      });
+
+      // Valve gate mechanism
+      if (state.valveOpen) {
+        valveGate.setAttribute('y', '15');
+        valveGate.setAttribute('fill', '#22c55e');
+        coilColor.setAttribute('fill', '#0369a1');
+        valveStatus.textContent = 'OPEN (NC Powered)';
+        valveStatus.setAttribute('fill', '#22c55e');
+        readoutValve.textContent = 'OPEN';
+        readoutValve.className = 'text-xl font-bold font-mono text-emerald-400';
+      } else {
+        valveGate.setAttribute('y', '42'); // drops down into pipe
+        valveGate.setAttribute('fill', '#ef4444');
+        coilColor.setAttribute('fill', '#475569');
+        valveStatus.textContent = 'CLOSED (Power Cut)';
+        valveStatus.setAttribute('fill', '#ef4444');
+        readoutValve.textContent = 'CLOSED';
+        readoutValve.className = 'text-xl font-bold font-mono text-red-400';
+      }
+
+      // Timer ring (201 is circumference of r=32)
+      const timerPct = Math.min(1, state.leakTimerMs / state.confirmDurationMs);
+      const strokeOffset = 201 - (timerPct * 201);
+      timerProgress.setAttribute('stroke-dashoffset', strokeOffset);
+      const remainingSec = Math.max(0, (state.confirmDurationMs - state.leakTimerMs) / 1000).toFixed(1);
+      timerCount.textContent = state.alarmLatched ? 'CUT' : (state.isConfirming ? `${remainingSec}s` : '3.0s');
+      readoutCountdown.textContent = `T: ${remainingSec}s`;
+
+      // Buzzer & LEDs
+      if (state.alarmLatched) {
+        buzzerWaves.style.opacity = '1';
+        ledRed.setAttribute('fill', '#ef4444');
+        ledRed.setAttribute('filter', 'url(#glowCyan)');
+        ledGreen.setAttribute('fill', '#1e293b');
+        ledGreen.removeAttribute('filter');
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold bg-red-950/80 border-red-700 text-red-400';
+        statusLabel.textContent = 'LEAK CONFIRMED · VALVE ISOLATED';
+      } else if (state.isConfirming) {
+        buzzerWaves.style.opacity = '0';
+        ledRed.setAttribute('fill', '#f59e0b');
+        ledGreen.setAttribute('fill', '#1e293b');
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold bg-amber-950/80 border-amber-700 text-amber-400';
+        statusLabel.textContent = `ΔQ > 0.4 L/min · CONFIRMING (${remainingSec}s)`;
+      } else {
+        buzzerWaves.style.opacity = '0';
+        ledGreen.setAttribute('fill', '#22c55e');
+        ledGreen.setAttribute('filter', 'url(#glowCyan)');
+        ledRed.setAttribute('fill', '#1e293b');
+        ledRed.removeAttribute('filter');
+        statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold bg-emerald-950/80 border-emerald-700 text-emerald-400';
+        statusLabel.textContent = 'SYSTEM MONITORING (HEALTHY)';
+      }
+
+      // Telemetry Text
+      readoutQ1.textContent = state.q1.toFixed(2);
+      readoutHz1.textContent = hz1.toFixed(1);
+      readoutQ2.textContent = state.q2.toFixed(2);
+      readoutHz2.textContent = hz2.toFixed(1);
+      readoutDelta.textContent = state.deltaQ.toFixed(2);
+      svgF1.textContent = `${state.q1.toFixed(2)} L/min`;
+      svgF2.textContent = `${state.q2.toFixed(2)} L/min`;
+      deltaDisplay.textContent = `${state.deltaQ.toFixed(2)} L/min`;
+
+      if (state.deltaQ >= state.threshold) {
+        readoutDelta.className = 'text-2xl font-bold font-mono text-red-400';
+        deltaDisplay.setAttribute('fill', '#ef4444');
+      } else {
+        readoutDelta.className = 'text-2xl font-bold font-mono text-slate-200';
+        deltaDisplay.setAttribute('fill', '#38bdf8');
+      }
+
+      // Update Serial Plotter History
+      q1History.shift();
+      q1History.push(state.q1);
+      q2History.shift();
+      q2History.push(state.q2);
+      drawSerialPlotter();
+
+      requestAnimationFrame(updateSimulation);
+    }
+
+    // Launch
+    requestAnimationFrame(updateSimulation);
+  </script>
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3S6 14 6 20a10 10 0 0 0 20 0C26 14 16 3 16 3z' fill='%2343c6d9'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0b7f92">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>Smart Water Network — Flow-Sensor Leak Detection (3D Demo)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="layout.js"></script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js">
+<link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js">
+<meta name="description" content="Interactive 3D simulation of the Smart Water Network leak detection and auto-isolation model.">
+<link rel="stylesheet" href="styles.css">
+<style>
+:root {
+  --panel-border:var(--line);
+  --bg:#eef4f6; --panel:#fff; --ink:#0d2229; --mut:#5a7580; --line:#c5d6db;
+  --acc:#0b7f92; --accT:#fff; --ok:#1d8a50; --bad:#d03a2e; --warn:#b87a00; --aq:#0b7f92;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#071318; --panel:#0f2128; --ink:#e4eff2; --mut:#8eaab3; --line:#22404a;
+    --acc:#43c6d9; --accT:#071318; --ok:#5fd38d; --bad:#ff6a5c; --warn:#f2b84b; --aq:#43c6d9;
+  }
+}
+html{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 .9375rem/1.5 Figtree,system-ui,sans-serif}
+main{max-width:1320px;margin:0 auto;padding:14px 14px 28px}
+h1{font:800 clamp(1.45rem,3.6vw,2.2rem)/1.1 "Bricolage Grotesque",sans-serif;letter-spacing:-.02em;margin:0 0 4px}
+.lead{margin:0;color:var(--mut);font-size:.92rem;max-width:70ch}
+.tb{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 10px;align-items:center}
+.tb .sp{flex:1}
+button{font:600 .84rem Figtree,sans-serif;padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--mut)}#bLogout{border-color:color-mix(in srgb,var(--bad) 40%,var(--line));color:var(--bad)}#bLogout:hover{background:color-mix(in srgb,var(--bad) 12%,var(--panel))}
+button:focus-visible{outline:3px solid var(--aq);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#bDemo{background:var(--acc);color:var(--accT);border-color:var(--acc)}
+#bDemo[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.seg{display:inline-flex}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:9px 0 0 9px;margin:0}
+.seg button:last-child{border-radius:0 9px 9px 0}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+@media(max-width:1080px){.grid{grid-template-columns:1fr}}
+#stage{position:relative;height:min(68vh,680px);min-height:400px;border-radius:16px;overflow:hidden;background:#0a1a21;border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.12)}
+canvas{display:block}#c{width:100%;height:100%;touch-action:none}
+.tag{user-select:none;-webkit-user-select:none;position:absolute;left:0;top:0;pointer-events:none;white-space:nowrap;display:flex;gap:5px;align-items:center;font:600 11px Figtree,sans-serif;background:rgba(8,19,24,.9);color:#e4eff2;border:1px solid #2b4c58;border-radius:999px;padding:2px 8px 2px 6px;backdrop-filter:blur(4px)}
+.tag u{width:7px;height:7px;border-radius:50%;background:#5fd38d;flex-shrink:0}
+.tag i{font-style:normal;color:#8fd7e4;font-variant-numeric:tabular-nums}
+.nolab .tag{display:none}
+#cap{position:absolute;left:10px;bottom:10px;max-width:min(520px,calc(100% - 20px));background:rgba(8,19,24,.94);color:#e4eff2;border-radius:11px;padding:10px 13px;font-size:.9rem;display:none;border:1px solid #2b4c58;line-height:1.4}
+#cap b{color:#f0a468}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.05)}
+.sec{padding:12px 14px;border-top:1px solid var(--line)}.sec:first-child{border-top:0}
+.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+h2{font:600 .95rem "Bricolage Grotesque",sans-serif;margin:0}
+.chip{font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+.nums{display:flex;gap:14px}
+.nums small{display:block;color:var(--mut);font-size:.7rem;margin-bottom:1px}
+.nums b{font:800 1.35rem "Bricolage Grotesque",sans-serif;font-variant-numeric:tabular-nums}
+.gauge{position:relative;height:7px;border-radius:4px;background:var(--line);margin:10px 0 5px;overflow:hidden}
+.gauge span{display:block;height:100%;border-radius:4px;width:5%;background:var(--ok);transition:width .2s,background .2s}
+.gauge em{position:absolute;left:20%;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.7}
+.note{font-size:.76rem;color:var(--mut);margin:0}
+@keyframes bl{50%{background:#b7c97a}}
+#lv{width:100%;height:auto;border-radius:8px;background:#0b1a21}
+.steps{display:flex;flex-direction:column;gap:4px}
+.step{display:flex;align-items:center;gap:8px;font-size:.8rem;padding:4px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.step .dot{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;background:var(--line);color:var(--mut);flex-shrink:0}
+.step.on .dot{background:var(--acc);color:#fff}
+.step.done .dot{background:var(--ok);color:#fff}
+.step.fail .dot{background:var(--bad);color:#fff}
+.serial{font:500 11.5px/1.45 "JetBrains Mono",monospace;background:#0b1a21;color:#8fd7e4;border-radius:8px;padding:8px 10px;max-height:110px;overflow:auto;white-space:pre-wrap}
+.serial .t{color:#5fd38d}.serial .w{color:#f2b84b}.serial .e{color:#ff6a5c}
+.timer{height:6px;border-radius:3px;background:var(--line);margin:6px 0 2px;overflow:hidden}
+.timer span{display:block;height:100%;width:0;background:var(--warn);transition:width .1s linear}
+.tg{background:#0e1621;border-radius:11px;padding:9px 11px;border:1px solid #1e3a4a}
+.tg-head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.tg-av{width:26px;height:26px;border-radius:50%;background:#2aabee;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.tg-name{font-size:.8rem;font-weight:600;color:#e4eff2}.tg-sub{font-size:.68rem;color:#8eaab3}
+.tg-msg{font-size:.84rem;color:#c8dce4;line-height:1.35}
+.pin{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:8px;font-size:.88rem}
+.pin b{font-variant-numeric:tabular-nums;color:var(--acc)}
+footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--line);color:var(--mut);font-size:.8rem;display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between}
+.hud{position:absolute;top:10px;right:10px;background:rgba(8,19,24,.88);border:1px solid #2b4c58;border-radius:10px;padding:8px 11px;font:600 11px "JetBrains Mono",monospace;color:#8fd7e4;pointer-events:none;line-height:1.5}
+.hud b{color:#e4eff2}
+
+/* ===== DEVICE PREVIEW MODES ===== */
+.modebar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.modebar .lbl{font-size:.72rem;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+.modebar button.mode{min-width:76px}
+.modebar button.mode[aria-pressed="true"]{background:var(--acc);color:var(--accT);border-color:var(--acc)}
+.preview-shell{transition:max-width .25s ease,margin .25s ease}
+.notch{display:none;height:6px;width:28%;margin:0 auto 8px;border-radius:4px;background:var(--line)}
+
+
+.steps .step{background:none;border:0;border-bottom:1px solid var(--line);border-radius:0}.steps .step:last-child{border-bottom:0}.chip{display:inline-block;background:none}
+/* Device preview modes */
+#previewShell{display:flex;justify-content:center;align-items:center;min-height:min(68vh,640px);padding:12px 8px;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--acc) 8%,var(--bg)) 0%,var(--bg) 70%);border:1px solid var(--line);border-radius:14px}
+.device{position:relative;background:#0a0e12;box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 1px #1a2530;transition:width .35s ease,height .35s ease,border-radius .35s ease;overflow:hidden}
+.device #stage{border:none;border-radius:12px;box-shadow:none;height:100%!important;min-height:0!important;width:100%;position:relative;overflow:hidden}
+/* Phone */
+/* Tablet */
+/* Laptop */
+.grid-preview{display:grid;grid-template-columns:minmax(0,1fr) var(--side);gap:12px;align-items:start}
+@media(max-width:1100px){.grid-preview{grid-template-columns:1fr}}
+
+
+/* ===== REAL DEVICE RESPONSIVE LAYOUT ===== */
+html{ -webkit-text-size-adjust: 100%; }
+main{ max-width: 1400px; margin: 0 auto; padding: 12px 14px 28px; }
+.tb{ gap: 6px; }
+.tb button{ min-height: 36px; }
+/* Default: laptop/desktop — side panel beside stage */
+.grid-preview, .grid{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(400px, 34vw);
+  gap: 12px;
+  align-items: start;
+}
+#previewShell{
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.device{
+  width: 100% !important;
+  height: auto !important;
+  max-width: none !important;
+  border-radius: 14px !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.device::after, .device .notch, .device .bar, .device .cam{ display: none !important; }
+.device #stage, #stage{
+  width: 100%;
+  height: min(62vh, 620px);
+  min-height: 320px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
+.side{
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide the fake device simulator bar on all real devices — layout is automatic */
+
+/* TABLET: ≤ 1024px */
+@media (max-width: 1024px){
+  .grid-preview, .grid{
+    grid-template-columns: 1fr;
+  }
+  .device #stage, #stage{
+    height: min(52vh, 520px);
+    min-height: 300px;
+  }
+  .side{
+    max-height: none;
+    overflow: visible;
+  }
+  h1{ font-size: clamp(1.2rem, 3.5vw, 1.7rem); }
+  .tb{ gap: 5px; }
+  .tb button{ padding: 8px 10px; font-size: .78rem; }
+}
+
+/* PHONE: ≤ 640px */
+@media (max-width: 640px){
+  main{ padding: 8px 10px 20px; }
+  h1{ font-size: 1.2rem; line-height: 1.2; }
+  .lead{ font-size: .8rem; }
+  .badges{ gap: 4px; }
+  .badge{ font-size: .62rem; padding: 2px 6px; }
+  .tb{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .tb .sp{ display: none; }
+  .tb button, .tb .seg button{
+    flex: 1 1 auto;
+    min-width: calc(33% - 6px);
+    padding: 9px 8px;
+    font-size: .75rem;
+    min-height: 40px; /* touch target */
+  }
+  .device #stage, #stage{
+    height: min(48vh, 360px);
+    min-height: 240px;
+    border-radius: 12px;
+  }
+  .side{
+    border-radius: 12px;
+  }
+  .sec{ padding: 10px 11px; }
+  .nums b{ font-size: 1.1rem; }
+  .hud{
+    font-size: 9.5px;
+    padding: 5px 7px;
+    top: 6px; right: 6px;
+  }
+  .tag{ font-size: 9.5px; padding: 1px 6px 1px 4px; }
+  .phone-row{ flex-direction: column; }
+  .phone-row button{ width: 100%; min-height: 40px; }
+  .low{ grid-template-columns: 1fr; gap: 12px; }
+  footer{ font-size: .7rem; flex-direction: column; gap: 4px; }
+  #cap{ font-size: .8rem; left: 6px; bottom: 6px; max-width: calc(100% - 12px); }
+}
+
+/* PHONE landscape viewport */
+@media (max-width: 900px) and (max-height: 450px) and (orientation: landscape){
+  .device #stage, #stage{
+    height: min(78vh, 320px);
+    min-height: 180px;
+  }
+  .grid-preview, .grid{
+    grid-template-columns: 1.2fr 1fr;
+  }
+  .side{ max-height: min(78vh, 320px); overflow-y: auto; }
+  h1{ font-size: 1rem; }
+  .lead, .badges{ display: none; }
+}
+
+/* Safe areas for notched phones */
+@supports (padding: env(safe-area-inset-bottom)){
+  body{
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  main{
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+</style>
+<link rel="stylesheet" href="demo-plus.css">
+</head>
+<body>
+
+<style>
+.demo-top{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--panel,#fff) 94%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line,#c8d5db);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Figtree,system-ui,sans-serif}
+.demo-top a{color:var(--acc,#0b7f92);font-weight:700;text-decoration:none;font-size:.9rem}
+.demo-top .brand{font-weight:800;color:var(--ink,#0c1f26);text-decoration:none;font-size:.95rem}
+.demo-top .brand span{color:var(--acc,#0b7f92)}
+body>main{padding-top:4px}
+</style>
+<div class="demo-top">
+  <a class="brand" href="index.html">Smart<span>Water</span></a>
+  <div class="top-actions" id="topActions">
+    <a href="index.html">← Home</a>
+  </div>
+</div>
+
+<main>
+  <header>
+    <h1>Smart Water Network: Leak Detection &amp; Auto-Isolation</h1>
+    <p class="lead">Two flow sensors (Q1 inlet, Q2 outlet) compare the water going in with the water coming out. The Arduino confirms a leak, closes the valve and can alert a phone. <span class="sim-chip">Simulation</span></p>
+  </header>
+
+  <div class="tb" role="toolbar" aria-label="Simulation controls">
+    <div class="tb-sim">
+      <button id="bDemo" aria-pressed="false">Play full demo</button>
+      <button id="bLeak">Open leak tap</button>
+      <button id="bFix">Repair &amp; reset</button>
+    </div>
+    <div class="tb-opts">
+      <span class="seg" role="group" aria-label="Leak size">
+        <button id="zS" aria-pressed="false">Small</button>
+        <button id="zL" aria-pressed="true">Large</button>
+      </span>
+      <span class="seg" role="group" aria-label="Camera">
+        <button data-v="ov">Overview</button>
+        <button data-v="pipe">Pipe</button>
+        <button data-v="ctl">Control</button>
+        <button data-v="lap">Laptop</button>
+      </span>
+      <button id="bLab" aria-pressed="true">Labels</button>
+      <button id="bLogout" type="button" hidden aria-label="Clear saved number and session">Clear data</button>
+    </div>
+  </div>
+
+<div class="grid-preview">
+    <div id="previewShell">
+  <div class="device" id="device" data-dev="laptop" data-ori="landscape">
+    <div id="stage">
+      <canvas id="c"></canvas>
+      <div class="hud" id="hud">Q1 <b id="h1">1.82</b>  Q2 <b id="h2">1.81</b><br>ΔQ <b id="hd">0.01</b> L/min  ·  <span id="hst">OK</span></div>
+      <div id="cap" role="status"></div>
+    </div>
+  </div>
+</div>
+
+    <aside class="side">
+      <!-- Live status -->
+      <section class="sec">
+        <div class="hd">
+          <h2>Branch Status</h2>
+          <span class="chip" id="st" style="color:var(--ok)" aria-live="polite">Normal</span>
+        </div>
+        <div class="nums">
+          <div><small>Q1 inlet (L/min)</small><b id="p1">1.82</b></div>
+          <div><small>Q2 outlet (L/min)</small><b id="p2">1.81</b></div>
+          <div><small>ΔQ (L/min)</small><b id="pd">0.01</b></div>
+        </div>
+        <div class="gauge"><span id="pg"></span><em></em></div>
+        <p class="note">Tick = 0.40 L/min threshold. Valve <b id="pv">OPEN</b></p>
+        <div class="timer" title="3 s confirmation"><span id="tmr"></span></div>
+        <p class="note" id="tmrLbl">Confirmation timer: idle</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px"><div style="background:color-mix(in srgb,var(--acc) 8%,transparent);border:1px solid color-mix(in srgb,var(--acc) 18%,transparent);border-radius:8px;padding:6px 8px"><small style="display:block;font-size:.62rem;color:var(--mut);font-weight:600">Events</small><b id="kpiE" style="font:800 1rem Bricolage Grotesque,sans-serif">0</b></div><div style="background:color-mix(in srgb,var(--acc) 8%,transparent);border:1px solid color-mix(in srgb,var(--acc) 18%,transparent);border-radius:8px;padding:6px 8px"><small style="display:block;font-size:.62rem;color:var(--mut);font-weight:600">Last alert</small><b id="kpiL" style="font:800 .85rem Bricolage Grotesque,sans-serif">—</b></div></div>
+      </section>
+
+      <!-- Algorithm steps -->
+      <section class="sec">
+        <div class="hd"><h2>Algorithm (live)</h2></div>
+        <div class="steps" id="steps">
+          <div class="step" data-s="0"><span class="dot">1</span> Read Q1 &amp; Q2 (pulses → L/min, averaged)</div>
+          <div class="step" data-s="1"><span class="dot">2</span> Compute ΔQ = Q1 − Q2</div>
+          <div class="step" data-s="2"><span class="dot">3</span> ΔQ ≥ 0.40 L/min? Start 3 s timer</div>
+          <div class="step" data-s="3"><span class="dot">4</span> Timer complete → LEAK confirmed</div>
+          <div class="step" data-s="4"><span class="dot">5</span> Alarm + close solenoid valve</div>
+        </div>
+      </section>
+
+      <!-- Graph -->
+      <section class="sec">
+        <div class="hd"><h2>Live flow graph (Q1, Q2)</h2></div>
+        <canvas id="lv" width="720" height="240"></canvas>
+      </section>
+
+      <!-- Serial log -->
+      <section class="sec">
+        <div class="hd"><h2>Serial monitor</h2></div>
+        <div class="serial" id="ser">[boot] system ready · ΔQ threshold 0.40 L/min · timer 3 s</div>
+      </section>
+
+      <!-- Telegram -->
+      
+    <section class="sec">
+      <div class="hd">
+        <h2>Mobile alert (ESP32)</h2>
+        
+      </div>
+      <div class="phone-box" style="background:linear-gradient(145deg,#0e1a24,#122430);border:1px solid #1e3a4a;border-radius:10px;padding:10px">
+        <label for="phone" style="display:block;font-size:.7rem;font-weight:600;color:#8eaab3;margin-bottom:4px">Operator mobile number</label>
+        <div style="display:flex;gap:6px">
+          <input id="phone" aria-label="Operator mobile number" type="tel" inputmode="tel" placeholder="+91 98765 43210" maxlength="18" style="flex:1;min-width:0;font:600 13px JetBrains Mono,monospace;padding:8px 10px;border-radius:7px;border:1px solid #2a4a56;background:#0a1520;color:#e4eff2">
+          <button type="button" id="bSavePhone" title="Save number for ESP32 alerts" style="background:#2aabee;color:#fff;border-color:#2aabee;font-weight:700">Save</button>
+        </div>
+        <p class="saved" id="phoneSaved" style="font-size:.7rem;color:#5fd38d;margin-top:5px">No number saved — alerts stay on-screen only.</p>
+        <div class="tg" style="margin-top:8px">
+          <div class="tg-head">
+            <div class="tg-av" style="background:#25D366">☎</div>
+            <div>
+              <div class="tg-name">ESP32 Alert Channel</div>
+              <div class="tg-sub">SMS / WhatsApp-style · simulated</div>
+            </div>
+          </div>
+          <div class="tg-msg" id="tgMsg">Waiting for events… Save a number, then open a leak to preview the mobile warning.</div>
+        </div>
+      </div>
+    </section>
+
+    </aside>
+  </div>
+
+  <section class="sec about" id="about" aria-labelledby="aboutH">
+    <div class="hd">
+      <h2 id="aboutH">About the model</h2>
+      <div class="about-actions">
+        <button type="button" id="abCopy">Copy abstract</button>
+        <button type="button" id="abDl">Download</button>
+        <button type="button" id="abPrint">Print</button>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="About the model">
+      <button type="button" role="tab" id="tab-abs" aria-controls="pan-abs" aria-selected="true">Abstract</button>
+      <button type="button" role="tab" id="tab-how" aria-controls="pan-how" aria-selected="false" tabindex="-1">How it works</button>
+      <button type="button" role="tab" id="tab-spec" aria-controls="pan-spec" aria-selected="false" tabindex="-1">Specs &amp; pins</button>
+      <button type="button" role="tab" id="tab-next" aria-controls="pan-next" aria-selected="false" tabindex="-1">Limits &amp; next steps</button>
+    </div>
+
+    <div role="tabpanel" id="pan-abs" aria-labelledby="tab-abs" class="panel">
+      <h3 id="abTitle">Smart Water Network: Leak Detection and Automatic Isolation</h3>
+      <p class="byline" id="abBy">Jitamitra Das, Aditya Bhusan Behera, Bignesh Acharya, Sai Swaroop Padhi · DAV Public School, CDA · Sahodaya</p>
+      <div id="abText" class="abstract">
+        <p>Undetected pipe leaks waste water and damage property, and in a small network a leak can run for hours before anyone notices. This project presents the Smart Water Network, a working model that detects a leak in a pipe section, isolates it automatically and alerts an operator.</p>
+        <p>Two YF-S201 flow sensors measure how much water enters (Q1) and how much leaves (Q2) one pipe branch. Each sensor sends pulses, about 7.5 per second for every 1 L/min. An Arduino counts the pulses on interrupt pins 2 and 3, averages the readings and computes the flow difference ΔQ = Q1 − Q2. In a healthy pipe what goes in comes out, so ΔQ stays near zero. When ΔQ stays at or above 0.40 L/min for 3 continuous seconds, the leak is confirmed; the confirmation window filters out short pump surges and prevents false alarms.</p>
+        <p>On confirmation the controller switches on a red LED and a buzzer, and a relay cuts power to a 12 V normally-closed solenoid valve so the affected section shuts off. The alarm stays latched until a person checks the pipe and resets the system. An optional ESP32 module forwards the same event to a saved operator phone number, and readings are sent to a laptop dashboard over serial. A 12 V R385 diaphragm pump drives the water. On the exhibition model the leak is created with a ball valve (the leak tap) fitted between Q1 and Q2, so the pipe is never cut.</p>
+        <p>The earlier pressure-sensor prototype cost about ₹4,850 including GST; the flow-sensor build's cost will be added once confirmed. The interactive 3D model on this page is a simulation of the physical prototype; its readings are illustrative, not measured data.</p>
+      </div>
+      <p class="keywords" id="abKw"><b>Keywords:</b> leak detection, flow sensor, YF-S201, mass balance, Arduino, solenoid valve, ESP32, smart water</p>
+    </div>
+
+    <div role="tabpanel" id="pan-how" aria-labelledby="tab-how" class="panel" hidden>
+      <h3>From water flow to a closed valve</h3>
+      <ol class="chain">
+        <li><b>Sense</b><span>Water spins a small rotor in each YF-S201. A Hall sensor makes pulses, about 7.5 per second for each 1 L/min.</span></li>
+        <li><b>Count</b><span>The Arduino counts pulses on pins 2 and 3 with interrupts, then Q (L/min) = pulses per second ÷ 7.5.</span></li>
+        <li><b>Average</b><span>Averaging a few readings smooths out noise.</span></li>
+        <li><b>Compare</b><span>ΔQ = Q1 − Q2. A leak between the sensors lowers Q2.</span></li>
+        <li><b>Confirm</b><span>ΔQ at or above 0.40 L/min must hold for 3 s before it counts as a leak.</span></li>
+        <li><b>Act</b><span>Red LED and buzzer on, relay opens, the normally-closed valve shuts, alarm latches.</span></li>
+        <li><b>Report</b><span>Serial data goes to the laptop; the optional ESP32 sends a phone alert.</span></li>
+      </ol>
+      <div class="tbl-wrap"><table>
+        <caption>System states</caption>
+        <thead><tr><th scope="col">State</th><th scope="col">Condition</th><th scope="col">What happens</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Normal</th><td>ΔQ below 0.40 L/min</td><td>Green LED, valve open, keep watching.</td></tr>
+          <tr><th scope="row">Checking</th><td>ΔQ at or above 0.40 L/min, timer under 3 s</td><td>Timer runs. If ΔQ drops back, the timer resets.</td></tr>
+          <tr><th scope="row">Leak confirmed</th><td>ΔQ at or above 0.40 L/min for 3 s</td><td>Alarm, valve closed, phone alert sent (if a number is saved).</td></tr>
+          <tr><th scope="row">Reset</th><td>Pipe checked, reset pressed</td><td>Alarm cleared, valve reopens, back to Normal.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div role="tabpanel" id="pan-spec" aria-labelledby="tab-spec" class="panel" hidden>
+      <div class="tbl-wrap"><table>
+        <caption>Specifications</caption>
+        <thead><tr><th scope="col">Part</th><th scope="col">Detail</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Flow sensors (Q1, Q2)</th><td>2 × YF-S201 Hall-effect sensors. Pulse output: F (Hz) = 7.5 × Q (L/min). Datasheet range 1–30 L/min.</td></tr>
+          <tr><th scope="row">Pump</th><td>R385 12 V diaphragm pump.</td></tr>
+          <tr><th scope="row">Controller</th><td>Arduino. Flow pulses are counted on interrupt pins D2 and D3.</td></tr>
+          <tr><th scope="row">Detection rule</th><td>ΔQ = Q1 − Q2 at or above 0.40 L/min for 3 s, from averaged readings.</td></tr>
+          <tr><th scope="row">Valve</th><td>12 V normally-closed solenoid valve, driven through a relay. Power cut means the valve closes.</td></tr>
+          <tr><th scope="row">Leak tap</th><td>Ball valve between Q1 and Q2. The pipe is never cut.</td></tr>
+          <tr><th scope="row">Phone alert</th><td>Optional ESP32 add-on that uses an SMS API. Simulated on this page.</td></tr>
+          <tr><th scope="row">Dashboard</th><td>Laptop, over serial: live graph and serial monitor.</td></tr>
+          <tr><th scope="row">Cost</th><td>The earlier pressure-sensor build cost about ₹4,850 with GST. The flow-sensor build's cost is still to be confirmed.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="tbl-wrap"><table>
+        <caption>Arduino pins</caption>
+        <thead><tr><th scope="col">Pin</th><th scope="col">Connected to</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">D2, D3</th><td>Q1 and Q2 flow sensors (interrupt pins)</td></tr>
+          <tr><th scope="row">D7</th><td>Relay → solenoid valve</td></tr>
+          <tr><th scope="row">D8</th><td>Buzzer</td></tr>
+          <tr><th scope="row">D9, D10</th><td>Green and red LEDs</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div role="tabpanel" id="pan-next" aria-labelledby="tab-next" class="panel" hidden>
+      <div class="two">
+        <div>
+          <h3>Current limits</h3>
+          <ul>
+            <li>One branch and two sensors. A leak is found only between Q1 and Q2.</li>
+            <li>The 0.40 L/min threshold and 3 s window are fixed in the program.</li>
+            <li>A leak that lowers ΔQ by less than 0.40 L/min is not flagged.</li>
+            <li>The YF-S201 datasheet range is 1–30 L/min, so very small flows are less reliable until calibrated.</li>
+            <li>Surges shorter than 3 s are ignored on purpose.</li>
+            <li>This page is a simulation. Values are illustrative, not measured.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Possible next steps</h3>
+          <ul>
+            <li>Add more flow sensors to locate the leaking section of a longer pipe.</li>
+            <li>Make the threshold and delay adjustable, with a calibration routine.</li>
+            <li>Log readings over time to spot slow leaks.</li>
+            <li>Send data to a cloud dashboard through the ESP32.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Team: Jitamitra Das, Aditya Bhusan Behera, Bignesh Acharya, Sai Swaroop Padhi · DAV CDA</span>
+    <span>Press ? for keyboard shortcuts</span>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)},stage=$('stage'),cv=$('c'),R;
+try{R=new THREE.WebGLRenderer({canvas:cv,antialias:true})}catch(e){stage.innerHTML='<p style="padding:20px;color:#fff">WebGL required.</p>';return}
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+var S=new THREE.Scene();S.background=new THREE.Color(0x0a1a21);S.fog=new THREE.Fog(0x0a1a21,28,68);
+var cam=new THREE.PerspectiveCamera(42,1,.1,100),ctl=new THREE.OrbitControls(cam,cv);
+ctl.enableDamping=true;ctl.maxPolarAngle=1.48;ctl.minDistance=2.8;ctl.maxDistance=24;
+var V={ov:[[9.2,8.2,11.5],[.3,.4,.2]],pipe:[[2.4,3.6,4.6],[1.5,1,-.2]],ctl:[[-2.4,4.2,7.2],[-2.2,.6,3.2]],lap:[[5.5,3.2,6.2],[4.8,1.2,2.8]]},fly=null;
+function go(k,snap){var v=V[k];if(snap){cam.position.fromArray(v[0]);ctl.target.fromArray(v[1]);ctl.update();return}
+fly={t:performance.now(),p:cam.position.clone(),q:ctl.target.clone(),p2:new THREE.Vector3().fromArray(v[0]),q2:new THREE.Vector3().fromArray(v[1])}}
+S.add(new THREE.HemisphereLight(0xcfeaf2,0x1a3038,.92));
+var dl=new THREE.DirectionalLight(0xffffff,.9);dl.position.set(6,12,7);dl.castShadow=true;dl.shadow.mapSize.set(2048,2048);
+var sc=dl.shadow.camera;sc.left=-11;sc.right=11;sc.top=11;sc.bottom=-11;sc.near=1;sc.far=36;dl.shadow.bias=-.0004;S.add(dl);
+var rim=new THREE.DirectionalLight(0x43c6d9,.38);rim.position.set(-9,5,-5);S.add(rim);
+function M(c,o){return new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.52,metalness:.18},o||{}))}
+function add(g,m,x,y,z){var k=new THREE.Mesh(g,m);k.position.set(x,y,z);k.castShadow=k.receiveShadow=true;S.add(k);return k}
+function box(w,h,d,c,x,y,z,o){return add(new THREE.BoxGeometry(w,h,d),M(c,o),x,y,z)}
+function cyl(r,h,c,x,y,z,o){return add(new THREE.CylinderGeometry(r,r,h,22),M(c,o),x,y,z)}
+function ball(r,c,x,y,z,o){return add(new THREE.SphereGeometry(r,16,12),M(c,o),x,y,z)}
+function seg(a,b,r,c){var A=new THREE.Vector3().fromArray(a),B=new THREE.Vector3().fromArray(b);
+var m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,A.distanceTo(B),16),M(c,{metalness:.6,roughness:.28}));
+m.position.copy(A).add(B).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),B.sub(A).normalize());m.castShadow=true;S.add(m);return m}
+function wire(p,c){S.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.map(function(a){return new THREE.Vector3().fromArray(a)}),false,'catmullrom',.02),40,.026,5),new THREE.MeshBasicMaterial({color:c})))}
+
+var CU=0xc9793a,Y=.22,PY=1.12,z=0;
+/* ===== RAISED PLATFORM + PERIMETER STRUCTURE ===== */
+// Main deck
+box(16.4,.32,9.6,0x0a1c24,.2,-.02,.2);
+// Outer rim (slightly raised border all around)
+box(16.55,.14,.18,0x1e4555,.2,.22,-4.55);
+box(16.55,.14,.18,0x1e4555,.2,.22,4.95);
+box(.18,.14,9.6,0x1e4555,-8,.22,.2);
+box(.18,.14,9.6,0x1e4555,8.4,.22,.2);
+// Inner lip under the rim for depth
+box(16.2,.06,.08,0x0f2a35,.2,.12,-4.4);
+box(16.2,.06,.08,0x0f2a35,.2,.12,4.8);
+box(.08,.06,9.4,0x0f2a35,-7.9,.12,.2);
+box(.08,.06,9.4,0x0f2a35,8.3,.12,.2);
+// Corner posts (taller, with caps)
+[[-7.9,-4.45],[8.3,-4.45],[-7.9,4.85],[8.3,4.85]].forEach(function(p){
+  cyl(.14,1.05,0x0c222c,p[0],-.4,p[1]);
+  cyl(.2,.08,0x1e4555,p[0],.18,p[1]);
+  cyl(.22,.06,0x2a5a6a,p[0],.28,p[1]);
+  cyl(.28,.05,0x0a1c24,p[0],-.9,p[1]);
+});
+// Mid-span feet for stability look
+[[-2, -4.45],[4.5,-4.45],[-2,4.85],[4.5,4.85]].forEach(function(p){
+  cyl(.12,.55,0x0c222c,p[0],-.35,p[1]);
+  cyl(.2,.05,0x0a1c24,p[0],-.62,p[1]);
+});
+// Floor with subtle grid feel
+var fl=new THREE.Mesh(new THREE.PlaneGeometry(240,240),new THREE.MeshStandardMaterial({color:0x051016,roughness:1}));
+fl.rotation.x=-Math.PI/2;fl.position.y=-1.1;fl.receiveShadow=true;S.add(fl);
+// Floor edge ring under platform (shadow catcher / perimeter mark)
+var ring=new THREE.Mesh(new THREE.RingGeometry(9.2,11.5,64),new THREE.MeshBasicMaterial({color:0x0a1a22,transparent:true,opacity:.55,side:THREE.DoubleSide}));
+ring.rotation.x=-Math.PI/2;ring.position.set(.2,-1.08,.2);S.add(ring);
+
+var bc=document.createElement('canvas');bc.width=1400;bc.height=820;var b2=bc.getContext('2d'),bt=new THREE.CanvasTexture(bc);bt.anisotropy=4;
+function drawBoard(){b2.fillStyle='#14323c';b2.fillRect(0,0,1400,820);b2.strokeStyle='#1d4553';b2.lineWidth=2;
+for(var i=0;i<=1400;i+=50){b2.beginPath();b2.moveTo(i,0);b2.lineTo(i,820);b2.stroke()}
+for(i=0;i<=820;i+=50){b2.beginPath();b2.moveTo(0,i);b2.lineTo(1400,i);b2.stroke()}
+b2.fillStyle='#e4eff2';b2.font='800 40px "Bricolage Grotesque",Arial';b2.fillText('Water Pipe Leak Detection & Auto-Isolation',40,72);
+b2.fillStyle='#8fd7e4';b2.font='600 20px Figtree,Arial';b2.fillText('Single branch  ·  2 flow sensors  ·  Simulated leak tap (no pipe cut)  ·  Arduino + NC solenoid  ·  ESP32 alert',40,108);
+b2.setLineDash([10,8]);b2.strokeStyle='#43c6d9';b2.lineWidth=3;b2.strokeRect(600,260,480,150);b2.setLineDash([]);
+b2.fillStyle='#43c6d9';b2.font='600 18px Figtree,Arial';b2.fillText('Monitored section  (Q1 → Q2)',620,430);bt.needsUpdate=true}
+drawBoard();if(document.fonts)document.fonts.ready.then(drawBoard);
+var bp=new THREE.Mesh(new THREE.PlaneGeometry(15.6,9),new THREE.MeshStandardMaterial({map:bt,roughness:.8}));bp.rotation.x=-Math.PI/2;bp.position.set(.2,Y,.2);bp.receiveShadow=true;S.add(bp);
+
+var tags=[];
+function tg(t,x,y,z,live){var e=document.createElement('div');e.className='tag';e.innerHTML='<u></u><span>'+t+'</span>'+(live?'<i></i>':'');stage.appendChild(e);tags.push({e:e,p:new THREE.Vector3(x,y,z)});return e}
+
+cyl(.95,.1,0x1a4a5a,-5.8,Y+.06,z);
+box(2.15,2,2.15,0xb8e0ec,-5.8,Y+1.05,z,{transparent:true,opacity:.18,roughness:.25});
+box(2,1.2,2,0x1a9fb8,-5.8,Y+.7,z,{transparent:true,opacity:.78});
+box(2.25,.08,2.25,0x2a6a7a,-5.8,Y+2.05,z);tg('Water tank',-5.8,2.65,z);
+box(.9,.5,.9,0x2a4a58,-3.9,Y+.32,z);cyl(.36,.5,0x1e3a48,-3.9,Y+.7,z);cyl(.15,.3,0x0e1c24,-3.9,Y+1.1,z);
+seg([-3.9,PY,z],[-3.45,PY,z],.1,CU);seg([-3.45,PY,z],[-2.05,PY,z],.135,CU);ball(.21,CU,-2.05,PY,z);
+tg('R385 12 V pump',-3.9,2.1,z);tg('Junction',-2.05,1.7,z);
+
+box(3.3,.1,2,0x0e4a55,-3.2,Y+.08,3.5);
+box(3.3,.32,.08,0x0e4a55,-3.2,Y+.26,2.55);box(3.3,.32,.08,0x0e4a55,-3.2,Y+.26,4.45);
+box(.08,.32,2,0x0e4a55,-4.85,Y+.26,3.5);box(.08,.32,2,0x0e4a55,-1.55,Y+.26,3.5);
+box(.68,.22,.52,0xb0b8c0,-4.5,Y+.32,3.35);
+box(1,.08,.72,0x0a0a0a,-3.2,Y+.26,3.45);box(.9,.02,.58,0x1a3a20,-3.2,Y+.31,3.45);
+[-4.3,-4.05,-3.8,-3.55].forEach(function(x){box(.13,.13,.07,0x111111,x,Y+.26,2.88)});tg('Arduino',-3.3,1.2,3.5);
+box(1.05,.05,.5,0x1a2a20,-.85,Y+.12,4.3);
+var bz=cyl(.2,.22,0x181e21,-1.2,Y+.28,4.3);
+var LD=[ball(.09,0x1d8a50,-.5,Y+.2,4.3,{emissive:0x1d8a50,emissiveIntensity:.3}),
+        ball(.09,0xd03a2e,-.2,Y+.2,4.3,{emissive:0xd03a2e,emissiveIntensity:.15})];
+tg('Buzzer + LEDs',-.7,1.05,4.3);
+box(.88,.24,.65,0x1a4a9a,.55,Y+.24,3.45);tg('Relay',.55,1.05,3.45);
+box(1.15,.52,.85,0x12161a,2.5,Y+.38,3.55);tg('12 V adapter',2.5,1.25,3.55);
+
+box(2.2,.07,1.35,0x9aa3ab,5,Y+.04,3.2);
+var lg=new THREE.Group();lg.position.set(5,Y+.07,2.55);lg.rotation.x=-.26;S.add(lg);
+var lb=new THREE.Mesh(new THREE.BoxGeometry(2.2,1.25,.05),M(0x20262b));lb.position.y=.63;lg.add(lb);
+var gc=$('lv'),gx=gc.getContext('2d'),gt=new THREE.CanvasTexture(gc);
+var gp=new THREE.Mesh(new THREE.PlaneGeometry(2.02,.9),new THREE.MeshBasicMaterial({map:gt}));gp.position.set(0,.63,.03);lg.add(gp);tg('Laptop',5,2.25,2.7);
+wire([[-4.5,.35,3.35],[-4.75,.3,4.55],[5,.3,4.55],[5,.3,4]],0x4a78ff);
+
+var dropM=new THREE.MeshBasicMaterial({color:0x43c6d9}),dotM=new THREE.MeshBasicMaterial({color:0x7fe3f0});
+var rotors=[];
+function node(x,zz){
+box(.95,.46,.5,0x1a2e38,x,PY,zz);cyl(.3,.2,0x24485a,x,PY+.3,zz);
+var r=new THREE.Group();r.position.set(x,PY+.43,zz);S.add(r);
+[0,1,2,3].forEach(function(i){var f=new THREE.Mesh(new THREE.BoxGeometry(.5,.04,.09),M(0x43c6d9,{emissive:0x43c6d9,emissiveIntensity:.7}));f.rotation.y=i*Math.PI/4;r.add(f)});rotors.push(r);
+box(.12,.07,.12,0x1a2e38,x-.3,Y+.04,zz);box(.12,.07,.12,0x1a2e38,x+.3,Y+.04,zz);
+var m=new THREE.MeshBasicMaterial({color:0x43c6d9,transparent:true,opacity:.4});
+var g=new THREE.Mesh(new THREE.CircleGeometry(.56,28),m);g.rotation.x=-Math.PI/2;g.position.set(x,Y+.015,zz);S.add(g);return m}
+var P=[new THREE.Vector3(-2.05,PY,z),new THREE.Vector3(-.3,PY,z),new THREE.Vector3(3.1,PY,z),new THREE.Vector3(5.35,PY,z)];
+seg(P[0].toArray(),P[1].toArray(),.13,CU);seg(P[1].toArray(),P[2].toArray(),.13,CU);seg(P[2].toArray(),P[3].toArray(),.13,CU);
+seg([5.35,PY,z],[5.9,PY,z],.13,CU);
+ball(.19,CU,-.3,PY,z);ball(.19,CU,3.1,PY,z);
+[-.3,1.4,3.1].forEach(function(x){box(.11,.42,.11,0x2a3a42,x,Y+.28,z);box(.26,.05,.26,0x1a2a32,x,Y+.05,z);});
+var n1=node(-.3,z),n2=node(3.1,z);
+cyl(.065,.5,0x9aa7ad,1.4,.58,z);var hd=box(.45,.09,.11,0x8aa0ad,1.4,.3,z);
+var demoRing=new THREE.Mesh(new THREE.RingGeometry(.22,.32,28),new THREE.MeshBasicMaterial({color:0x43c6d9,transparent:true,opacity:.55,side:THREE.DoubleSide}));demoRing.rotation.x=-Math.PI/2;demoRing.position.set(1.4,Y+.03,z);S.add(demoRing);
+var hot=new THREE.Mesh(new THREE.CylinderGeometry(.24,.24,3.3,20),new THREE.MeshBasicMaterial({color:0xd03a2e,transparent:true,opacity:.38}));
+hot.rotation.z=Math.PI/2;hot.position.set(1.4,PY,z);hot.visible=false;S.add(hot);
+box(.92,.52,.58,0x243a48,4.25,PY,z);box(.68,.18,.42,0x1a2a35,4.25,PY+.32,z);var coil=cyl(.21,.48,0x1d8a50,4.25,PY+.52,z,{emissive:0x1d8a50,emissiveIntensity:.75});cyl(.16,.07,0x4a5a68,4.25,PY,z-.3);cyl(.16,.07,0x4a5a68,4.25,PY,z+.3);
+box(1,.66,.88,0x2b4a57,6,Y+.35,z);var roof=new THREE.Mesh(new THREE.ConeGeometry(.82,.48,4),M(0xa4571f));roof.rotation.y=Math.PI/4;roof.position.set(6,Y+.95,z);S.add(roof);
+tg('House / outlet',6,2.1,z);
+var pool=new THREE.Mesh(new THREE.CircleGeometry(.14,20),new THREE.MeshBasicMaterial({color:0x43c6d9,transparent:true,opacity:.7}));pool.rotation.x=-Math.PI/2;pool.position.set(1.4,Y+.015,z);pool.visible=false;S.add(pool);
+var drops=[0,1,2].map(function(){var d=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),dropM);d.visible=false;S.add(d);return d});
+var cum=[0,P[0].distanceTo(P[1])];cum.push(cum[1]+P[1].distanceTo(P[2]));cum.push(cum[2]+P[2].distanceTo(P[3]));
+var dots=[];for(var k=0;k<26;k++){var d=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),dotM);S.add(d);dots.push(d)}
+function at(s){var L=cum[3];s=((s%L)+L)%L;var k=s<=cum[1]?1:(s<=cum[2]?2:3);var t=(s-cum[k-1])/(cum[k]-cum[k-1]);return P[k-1].clone().lerp(P[k],t)}
+wire([[-.3,.22,z],[-.3,.22,2.25],[-4.3,.28,2.9]],0xf2d14b);
+wire([[3.1,.22,z],[3.1,.22,2.4],[-4.05,.28,2.9]],0xf2d14b);
+wire([[4.25,.55,z],[4.25,.55,2.55],[.55,.4,2.95],[.55,.4,3.45]],0x4a78ff);
+var T={s1:tg('Q1 · YF-S201 (inlet)',-.3,1.9,z,1),s2:tg('Q2 · YF-S201 (outlet)',3.1,1.9,z,1),tap:tg('Leak tap (simulated)',1.4,.22,z),vl:tg('Solenoid Valve',4.25,2.15,z,1)};
+
+
+function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
+var savedPhone=ls('sw_phone')||'';
+var eventCount=+(ls('sw_events')||0);
+(function(){var ph=$('phone');if(ph){ph.value=savedPhone;if(savedPhone&&$('phoneSaved'))$('phoneSaved').textContent='Saved: '+savedPhone+' — ESP32 will target this number.';}
+if($('kpiE'))$('kpiE').textContent=eventCount;})();
+function maskPhone(n){var s=String(n),total=s.replace(/\D/g,'').length,seen=0;if(total<4)return s;return s.replace(/\d/g,function(c){seen++;return (seen<=2||seen>total-2)?c:'•'})}
+function sendMobileAlert(){
+  var num=(savedPhone||'').trim();
+  eventCount++;try{localStorage.setItem('sw_events',String(eventCount))}catch(e){}
+  if($('kpiE'))$('kpiE').textContent=eventCount;
+  if($('kpiL'))$('kpiL').textContent=new Date().toLocaleTimeString().slice(0,5);
+  if(!num){pushAl('LEAK confirmed. Valve CLOSED. No mobile number saved — on-screen only.');return}
+  pushAl('LEAK. Valve CLOSED. ESP32 SMS to '+maskPhone(num)+': "Water leak detected. Section isolated. Check pipe between Q1 and Q2."');
+}
+
+if($('phone'))$('phone').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();if($('bSavePhone'))$('bSavePhone').click()}});
+
+if($('bSavePhone'))$('bSavePhone').onclick=function(){
+  var v=$('phone').value.trim();
+  if(!v){savedPhone='';try{localStorage.removeItem('sw_phone')}catch(e){}$('phoneSaved').textContent='Number cleared.';logSer('mobile number cleared','w');return}
+  if(v.replace(/\D/g,'').length<8){$('phoneSaved').textContent='Enter a valid mobile number.';return}
+  savedPhone=v;try{localStorage.setItem('sw_phone',v)}catch(e){}
+  $('phoneSaved').textContent='Saved: '+v+' — ESP32 will send leak warnings here.';
+  logSer('mobile number saved: '+maskPhone(v),'t');
+};
+
+var state={leak:false,alarm:false,t0:0,big:true,p1:1.82,p2:1.81,c0:0,hist:[[],[]],gl:LD[0],rl:LD[1]};var TH=.4;
+var serLines=[];
+function logSer(msg,cls){if(window.swOnLog)window.swOnLog(msg,cls);serLines.push({t:new Date().toLocaleTimeString().slice(0,8),m:msg,c:cls||''});if(serLines.length>8)serLines.shift();
+$('ser').innerHTML=serLines.map(function(l){return '<span class="'+l.c+'">['+l.t+'] '+l.m+'</span>'}).join('\n');var _s=$('ser');if(_s)_s.scrollTop=_s.scrollHeight}
+function setSteps(active,doneUpTo){
+  document.querySelectorAll('#steps .step').forEach(function(el,i){
+    el.classList.remove('on','done','fail');
+    if(state.alarm&&i>=3){el.classList.add(i===4?'fail':'done');return}
+    if(i<doneUpTo)el.classList.add('done');
+    else if(i===active)el.classList.add('on');
+  });
+}
+function pushAl(t){
+  $('tgMsg').textContent=t;
+  $('tgMsg').style.color=t.toLowerCase().indexOf('leak')>=0?'#ff8a7a':'#c8dce4';
+  logSer(t,t.toLowerCase().indexOf('leak')>=0?'e':'w');
+}
+function leakOn(){if(state.leak||state.alarm)return;state.leak=true;state.t0=performance.now();state.c0=0;logSer('leak tap opened · ΔP rising','w');setSteps(2,2)}
+function fix(){if(!state.leak&&!state.alarm)return;state.leak=false;state.alarm=false;state.c0=0;state.hist=[[],[]];pushAl('Repaired & reset. Valve reopened.');setSteps(0,0);$('tmr').style.width='0%';$('tmrLbl').textContent='Confirmation timer: idle'}
+
+var cap=$('cap'),bD=$('bDemo'),running=false,tm=[];
+function say(s,t){cap.style.display=s?'block':'none';cap.innerHTML=s?'<b>'+s+'</b> '+t:''}
+function stop(){tm.forEach(clearTimeout);tm=[];running=false;bD.textContent='Play full demo';bD.setAttribute('aria-pressed','false');say('')}
+function at_(ms,f){tm.push(setTimeout(f,ms))}
+function size(big){state.big=big;$('zL').setAttribute('aria-pressed',big);$('zS').setAttribute('aria-pressed',!big)}
+bD.onclick=function(){if(running){stop();fix();return}
+running=true;bD.textContent='Stop demo';bD.setAttribute('aria-pressed','true');fix();size(true);go('ov');
+say('Step 1.','Normal running. S1 ≈ S2. Valve open. Water flows to the house.');
+at_(3000,function(){leakOn();go('pipe');say('Step 2.','Leak tap opens (simulated, no pipe cut). Q2 falls below Q1. At ΔQ ≥ 0.40 L/min the 3 s timer starts.')});
+at_(7800,function(){go('ctl');say('Step 3.','Leak confirmed. Red LED + buzzer. Relay closes solenoid valve.')});
+at_(12500,function(){go('lap');say('Step 4.','Laptop graph shows the Q2 drop. Serial log & phone alert update.')});
+at_(16500,function(){fix();go('ov');say('Step 5.','Repair & reset. Valve reopens. System returns to monitoring.')});
+at_(20500,function(){size(false);leakOn();go('pipe');say('Step 6.','Small leak. ΔQ is still above 0.40 L/min, so isolation still happens.')});
+at_(25500,function(){go('ctl');say('Step 7.','Only the affected section is isolated.')});
+at_(29500,function(){fix();go('ov');say('Done.','Detect → Confirm → Isolate → Alert → Repair → Recover.')});
+at_(33500,stop)};
+function man(f){return function(){stop();f()}}
+$('bLeak').onclick=man(leakOn);$('bFix').onclick=man(fix);
+$('zS').onclick=function(){size(false)};$('zL').onclick=function(){size(true)};
+document.querySelectorAll('[data-v]').forEach(function(e){e.onclick=function(){go(e.dataset.v)}});
+$('bLab').onclick=function(){var on=$('bLab').getAttribute('aria-pressed')!=='true';$('bLab').setAttribute('aria-pressed',on);stage.classList.toggle('nolab',!on)};
+
+var rm=matchMedia('(prefers-reduced-motion:reduce)').matches||document.documentElement.dataset.motion==='off',fo=0,lastD=0,W=1,H=1,cols=['#4db3e6','#ff9f5e'];
+function pad(v){return String(Math.round(v)).padStart(3,' ')}
+function drawG(){
+  var barH=34;
+  gx.fillStyle='#0b1a21';gx.fillRect(0,0,720,240);
+  gx.fillStyle=state.alarm?'#3a1512':(state.leak?'#3a2e0a':'#0f2a1c');gx.fillRect(0,0,720,barH);
+  gx.font='600 14px Figtree,Arial';
+  gx.fillStyle='#4db3e6';gx.fillText('Q1 inlet',12,22);
+  gx.fillStyle='#ff9f5e';gx.fillText('Q2 outlet',100,22);
+  gx.textAlign='right';gx.font='700 14px Figtree,Arial';
+  if(state.alarm){gx.fillStyle='#ff6a5c';gx.fillText('LEAK  ·  Solenoid Valve: CLOSED',708,22)}
+  else if(state.leak){gx.fillStyle='#f2b84b';gx.fillText('CONFIRMING  ·  Solenoid Valve: OPEN',708,22)}
+  else{gx.fillStyle='#5fd38d';gx.fillText('OK  ·  Solenoid Valve: OPEN',708,22)}
+  gx.textAlign='left';
+  gx.strokeStyle='#27414f';gx.lineWidth=1;
+  for(var a=1;a<4;a++){var gy=barH+a*48;gx.beginPath();gx.moveTo(0,gy);gx.lineTo(720,gy);gx.stroke()}
+  [state.hist[0],state.hist[1]].forEach(function(h,j){
+    gx.strokeStyle=cols[j];gx.lineWidth=3;gx.beginPath();
+    h.forEach(function(v,k){var x=k*720/59,y=230-v*70;if(y<barH+4)y=barH+4;k?gx.lineTo(x,y):gx.moveTo(x,y)});
+    gx.stroke();
+  });
+  gt.needsUpdate=true;
+}
+function sync(now){
+  var nz=function(){return(Math.random()-.5)*.04};var a1=Math.max(0,state.p1+(state.p1>.05?nz():0)),a2=Math.max(0,state.p2+(state.p2>.05?nz():0)),d=Math.max(0,a1-a2);
+  state.hist[0].push(a1);state.hist[1].push(a2);state.hist.forEach(function(h){if(h.length>60)h.shift()});
+  $('p1').textContent=a1.toFixed(2);$('p2').textContent=a2.toFixed(2);$('pd').textContent=d.toFixed(2);
+  $('h1').textContent=a1.toFixed(2);$('h2').textContent=a2.toFixed(2);$('hd').textContent=d.toFixed(2);
+  var g=$('pg');g.style.width=Math.min(100,d/2*100)+'%';g.style.background=state.alarm?'var(--bad)':(d>=TH?'var(--warn)':'var(--ok)');
+  var c=$('st');
+  if(state.alarm){c.textContent='Leak: valve CLOSED';c.style.color='var(--bad)';$('hst').textContent='LEAK';$('hst').style.color='#ff6a5c';$('tmr').style.width='100%';$('tmrLbl').textContent='Confirmation timer: 3.0 / 3.0 s — confirmed'}
+  else if(state.leak){var sec=state.c0?Math.min(3,(now-state.c0)/1000):0;c.textContent=state.c0?'Confirming '+sec.toFixed(1)+' s':'Flow dropping';c.style.color='var(--warn)';$('hst').textContent='CHK';$('hst').style.color='#f2b84b'
+    $('tmr').style.width=(sec/3*100)+'%';$('tmrLbl').textContent='Confirmation timer: '+sec.toFixed(1)+' / 3.0 s'}
+  else{c.textContent='Normal';c.style.color='var(--ok)';$('hst').textContent='OK';$('hst').style.color='#5fd38d';$('tmr').style.width='0%';$('tmrLbl').textContent='Confirmation timer: idle'}
+  $('pv').textContent=state.alarm?'CLOSED':'OPEN';
+  T.s1.querySelector('i').textContent=a1.toFixed(2)+' L/min';T.s2.querySelector('i').textContent=a2.toFixed(2)+' L/min';T.vl.querySelector('i').textContent=state.alarm?'CLOSED':'OPEN';
+  var col=state.alarm?'#ff6a5c':(state.leak?'#f2b84b':'#5fd38d');[T.s1,T.s2,T.vl].forEach(function(e){e.querySelector('u').style.background=col});
+  // algorithm steps
+  if(state.alarm)setSteps(4,4);
+  else if(state.leak){if(d>=TH)setSteps(2,2);else setSteps(1,1)}
+  else setSteps(0,1);
+  drawG();
+}
+function tick(t){requestAnimationFrame(tick);var now=performance.now();fo+=rm?0:.03;
+if(fly){var k=Math.min(1,(now-fly.t)/1000);k=k*k*(3-2*k);cam.position.lerpVectors(fly.p,fly.p2,k);ctl.target.lerpVectors(fly.q,fly.q2,k);if(k>=1)fly=null}
+var dq=state.p1-state.p2;if(state.leak&&!state.alarm){if(dq>=TH){if(!state.c0)state.c0=now;if(now-state.c0>=3000){state.alarm=true;sendMobileAlert();setSteps(4,4)}}else state.c0=0}
+var tp1=state.alarm?0:1.82;var tp2=state.alarm?0:(state.leak?(state.big?.55:1.3):1.81);
+state.p1+=(tp1-state.p1)*.055;state.p2+=(tp2-state.p2)*.055;
+var open=!state.alarm,lk=state.leak&&!state.alarm;
+var cc=open?0x1d8a50:0xd03a2e;coil.material.color.set(cc);coil.material.emissive.set(cc);
+state.gl.material.emissiveIntensity=open?1:.08;state.rl.material.emissiveIntensity=state.alarm?1.4:.08;
+var nc=state.alarm?0xd03a2e:(state.leak?0xf2b84b:0x43c6d9);n1.color.set(nc);n2.color.set(nc);
+hot.visible=state.leak;hot.material.opacity=.3+.16*Math.sin(t*.008);
+hd.rotation.y+=((state.leak?Math.PI/2:0)-hd.rotation.y)*.12;hd.material.color.set(state.leak?0xd03a2e:0x8aa0ad);
+pool.visible=state.leak;if(typeof demoRing!=="undefined"){demoRing.material.opacity=.35+.25*Math.sin(t*.006);demoRing.scale.setScalar(state.leak?1.15+.1*Math.sin(t*.005):1);}pool.scale.setScalar(lk?(state.big?1.8:1.1)+Math.sin(t*.004)*.1:1.3);
+drops.forEach(function(d,k){d.visible=lk;if(lk){var f=((rm?0:t*(state.big?.0018:.001))+k/3)%1;d.position.set(1.4,.28-f*(.28-Y),z)}});
+dots.forEach(function(d,k){d.visible=open;if(open)d.position.copy(at(k*cum[3]/26+fo*1.5))});rotors.forEach(function(r,i){r.rotation.y+=rm?0:(i?state.p2:state.p1)*.06});
+bz.position.x=-1.2+(state.alarm&&!rm?Math.sin(t*.07)*.025:0);
+if(t-lastD>100){lastD=t;sync(now)}
+tags.forEach(function(g){var v=g.p.clone().project(cam);if(v.z>1){g.e.style.visibility='hidden';return}g.e.style.visibility='';g.e.style.transform='translate('+((v.x*.5+.5)*W).toFixed(1)+'px,'+((-v.y*.5+.5)*H).toFixed(1)+'px) translate(-50%,-110%)'});
+ctl.update();R.render(S,cam)}
+function fit(){W=stage.clientWidth;H=stage.clientHeight;R.setSize(W,H,false);cam.aspect=W/H;cam.updateProjectionMatrix()}
+addEventListener('resize',fit);fit();go('ov',true);setTimeout(function(){window.dispatchEvent(new Event('resize'));},200);setTimeout(function(){window.dispatchEvent(new Event('resize'));},600);logSer('system ready · ΔQ threshold 0.40 L/min · timer 3 s · pulses on D2/D3','t');sync(performance.now());
+
+if($('bLogout'))$('bLogout').onclick=function(){
+  stop();fix();
+  savedPhone='';
+  try{localStorage.removeItem('sw_phone');localStorage.removeItem('sw_events')}catch(e){}
+  eventCount=0;
+  if($('phone'))$('phone').value='';
+  if($('phoneSaved'))$('phoneSaved').textContent='Saved number and session cleared.';
+  if($('kpiE'))$('kpiE').textContent='0';
+  if($('kpiL'))$('kpiL').textContent='—';
+  if($('tgMsg')){$('tgMsg').textContent='Session cleared. Save a number to enable mobile alerts.';$('tgMsg').style.color='#c8dce4'}state.hist=[[],[]];
+  logSer('cleared · mobile number and event count cleared','w');
+};
+
+addEventListener('keydown',function(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  var tn=(e.target&&e.target.tagName||'').toLowerCase();
+  if(tn==='input'||tn==='textarea'||tn==='select')return;
+  var k=e.key.toLowerCase(),onCtl=tn==='button'||tn==='a';
+  if(k==='l'||(k===' '&&e.target===stage)){e.preventDefault();stop();leakOn()}
+  else if(k==='r'){stop();fix()}
+  else if(k==='d'&&!onCtl){bD.click()}
+});
+
+
+requestAnimationFrame(tick);
+})();
+</script>
+<script src="demo-plus.js"></script>
+</body>
+</html>
